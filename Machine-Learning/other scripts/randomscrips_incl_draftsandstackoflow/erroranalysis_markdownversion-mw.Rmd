@@ -1,0 +1,478 @@
+---
+title: "Sleap Error Analysis (Markdown Ver)"
+author: "Molly Westbrook"
+date: "2023-06-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rhdf5)
+library(here)
+library(tidyverse)
+library(zoo)
+library(reshape2)
+library(data.table)
+library(reticulate)
+library(patchwork)
+```
+
+
+File import and organization:
+
+```{r}
+frames107 <- "model_comparison_6-13-2023.003_HiQualCamTestVid2_25fps_107.analysis.h5"
+frames107_bits <- h5ls(here(frames107))
+frames227 <- "model_comparison_6-13-2023.004_HiQualCamTestVid2_25fps_227.analysis.h5"
+frames227_bits <- h5ls(here(frames227))
+frames362 <- "model_comparison_6-13-2023.005_HiQualCamTestVid2_25fps_362.analysis.h5"
+frames362_bits <- h5ls(here(frames362))
+frames780 <- "model_comparison_6-13-2023.012_HiQualCamTestVid2_25fps_780_newhyperparameters.analysis.H5"
+frames780_bits <- h5ls(here(frames780))
+```
+
+
+Instance scores for each of the three models: histograms
+Instance = for a particular frame, each instance of fish
+
+```{r}
+#organizing datasets
+frames107_instancescores <- as.data.frame(h5read(here(frames107), "/instance_scores"))
+frames107_instancescores <- frames107_instancescores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames107_instancescores <- as.matrix(frames107_instancescores)
+
+frames227_instancescores <- as.data.frame(h5read(here(frames227), "/instance_scores"))
+frames227_instancescores <- frames227_instancescores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames227_instancescores <- as.matrix(frames227_instancescores)
+
+frames362_instancescores <- as.data.frame(h5read(here(frames362), "/instance_scores"))
+frames362_instancescores <- frames362_instancescores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames362_instancescores <- as.matrix(frames362_instancescores)
+
+frames780_instancescores <- as.data.frame(h5read(here(frames780), "/instance_scores"))
+frames780_instancescores <- frames780_instancescores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames780_instancescores <- as.matrix(frames780_instancescores)
+
+#actual histograms
+
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms, heights=lcm(3), width=lcm(15), respect=T)
+hist(frames107_instancescores, breaks=50, xlab="Instance Scores", ylab="Frequency", 
+     main="Instance Scores for 107 frame model")
+hist(frames227_instancescores, breaks=50, xlab="Instance Scores", ylab="Frequency", 
+     main="Instance Scores for 227 frame model")
+hist(frames362_instancescores, breaks=50, xlab="Instance Scores", ylab="Frequency", 
+     main="Instance Scores for 362 frame model")
+hist(frames780_instancescores, breaks=50, xlab="Instance Scores", ylab="Frequency", 
+     main="Instance Scores for 780 frame model")
+
+
+```
+Point scores for each model: histograms (all points pooled)
+Points = for each frame, each of the eight skeletal points MLE score
+```{r}
+frames107_pointscores <- as.data.frame(h5read(here(frames107), "/point_scores"))
+frames107_pointscores <- frames107_pointscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames107_pointscores <- as.matrix(frames107_pointscores)
+
+frames227_pointscores <- as.data.frame(h5read(here(frames227), "/point_scores"))
+frames227_pointscores <- frames227_pointscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames227_pointscores <- as.matrix(frames227_pointscores)
+
+frames362_pointscores <- as.data.frame(h5read(here(frames362), "/point_scores"))
+frames362_pointscores <- frames362_pointscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames362_pointscores <- as.matrix(frames362_pointscores)
+
+frames780_pointscores <- as.data.frame(h5read(here(frames780), "/point_scores"))
+frames780_pointscores <- frames780_pointscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames780_pointscores <- as.matrix(frames780_pointscores)
+
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms)
+hist(frames107_pointscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Point Scores for 107 frame model")
+hist(frames227_pointscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Point Scores for 227 frame model")
+hist(frames362_pointscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Point Scores for 362 frame model")
+hist(frames780_pointscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Point Scores for 780 frame model")
+
+
+```
+
+Tracking scores for each model: histograms(all points pooled)
+Tracks = for each frame, each of the skeletal points' XY position MLE score
+```{r}
+frames107_trackingscores <- as.data.frame(h5read(here(frames107), "/tracking_scores"))
+frames107_trackingscores <- frames107_trackingscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames107_trackingscores <- as.matrix(frames107_trackingscores)
+
+frames227_trackingscores <- as.data.frame(h5read(here(frames227), "/tracking_scores"))
+frames227_trackingscores <- frames227_trackingscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames227_trackingscores <- as.matrix(frames227_trackingscores)
+
+frames362_trackingscores <- as.data.frame(h5read(here(frames362), "/tracking_scores"))
+frames362_trackingscores <- frames362_trackingscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames362_trackingscores <- as.matrix(frames362_trackingscores)
+
+frames780_trackingscores <- as.data.frame(h5read(here(frames780), "/tracking_scores"))
+frames780_trackingscores <- frames780_trackingscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+frames780_trackingscores <- as.matrix(frames780_trackingscores)
+
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms)
+hist(frames107_trackingscores, breaks=50, xlab="Tracking Scores", ylab="Frequency", 
+     main="Tracking Scores for 107 frame model")
+hist(frames227_trackingscores, breaks=50, xlab="Tracking Scores", ylab="Frequency", 
+     main="Tracking Scores for 227 frame model")
+hist(frames362_trackingscores, breaks=50, xlab="Tracking Scores", ylab="Frequency", 
+     main="Tracking Scores for 362 frame model")
+hist(frames780_trackingscores, breaks=50, xlab="Tracking Scores", ylab="Frequency", 
+     main="Tracking Scores for 780 frame model")
+
+```
+
+Number of Identities Generated
+```{r}
+frames107_numtracks <- length(as.vector(h5read(here(frames107), "/track_names")))
+frames227_numtracks <- length(as.vector(h5read(here(frames227), "/track_names")))
+frames362_numtracks <- length(as.vector(h5read(here(frames362), "/track_names")))
+frames780_numtracks <- length(as.vector(h5read(here(frames780), "/track_names")))
+
+numtracks <- c(frames107_numtracks, frames227_numtracks, frames362_numtracks, frames780_numtracks)
+numframes <- c(107, 227, 362, 780)
+
+numtracksdf <- as.data.frame(cbind(numframes, numtracks))
+
+ggplot(numtracksdf, aes(x=numframes, y=numtracks))+
+  geom_point(size=2)+
+  geom_line(size=0.6)+
+  xlab("Number of Frames in Model")+
+  ylab("Number of Track Identities Generated")+
+  coord_cartesian(ylim=c(0, 350))+
+  theme_classic()+
+  theme(text=element_text(size=15))
+```
+
+Point scores corresponding to each point: data prep
+```{r}
+#model 107 first
+frames107_nodes <- t(as.data.frame(h5read(here(frames107), "/node_names")))
+frames107_nodes <- rep(frames107_nodes, frames107_numtracks)
+frames107_pointscores <- as.data.frame(frames107_pointscores)
+names(frames107_pointscores) <- c(frames107_nodes) #haha yes!
+#do some melting so I can filter through these columns
+frames107_pointscores$frame <- seq_along(frames107_pointscores[,1])
+frames107_pointscores_melted <- reshape2::melt(frames107_pointscores, id=c("frame"))
+
+#and we'll prep 227
+frames227_nodes <- t(as.data.frame(h5read(here(frames227), "/node_names")))
+frames227_nodes <- rep(frames227_nodes, frames227_numtracks)
+frames227_pointscores <- as.data.frame(frames227_pointscores)
+names(frames227_pointscores) <- c(frames227_nodes)
+frames227_pointscores$frame <- seq_along(frames227_pointscores[,1])
+frames227_pointscores_melted <- reshape2::melt(frames227_pointscores, id=c("frame"))
+
+#and 362
+frames362_nodes <- t(as.data.frame(h5read(here(frames362), "/node_names")))
+frames362_nodes <- rep(frames362_nodes, frames362_numtracks)
+frames362_pointscores <- as.data.frame(frames362_pointscores)
+names(frames362_pointscores) <- c(frames362_nodes)
+frames362_pointscores$frame <- seq_along(frames362_pointscores[,1])
+frames362_pointscores_melted <- reshape2::melt(frames362_pointscores, id=c("frame"))
+
+frames780_nodes <- t(as.data.frame(h5read(here(frames780), "/node_names")))
+frames780_nodes <- rep(frames780_nodes, frames780_numtracks)
+frames780_pointscores <- as.data.frame(frames780_pointscores)
+names(frames780_pointscores) <- c(frames780_nodes)
+frames780_pointscores$frame <- seq_along(frames780_pointscores[,1])
+frames780_pointscores_melted <- reshape2::melt(frames780_pointscores, id=c("frame"))
+
+```
+
+Nose Scores
+```{r}
+frames107_pointscores_noses <- frames107_pointscores_melted %>%
+  filter(variable == "nose")
+frames227_pointscores_noses <- frames227_pointscores_melted %>%
+  filter(variable == "nose")
+frames362_pointscores_noses <- frames362_pointscores_melted %>%
+  filter(variable == "nose")
+frames780_pointscores_noses <- frames780_pointscores_melted %>%
+  filter(variable == "nose")
+
+#NA count
+sum(is.na(frames107_pointscores_noses))
+sum(is.na(frames227_pointscores_noses))
+sum(is.na(frames362_pointscores_noses))
+sum(is.na(frames780_pointscores_noses))
+
+#histos
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms)
+hist(as.numeric(frames107_pointscores_noses$value), breaks=50, xlab="Nose Scores", ylab="Frequency", 
+     main="Nose Scores for 107 frame model")
+hist(as.numeric(frames227_pointscores_noses$value), breaks=50, xlab="Nose Scores", ylab="Frequency", 
+     main="Nose Scores for 227 frame model")
+hist(as.numeric(frames362_pointscores_noses$value), breaks=50, xlab="Nose Scores", ylab="Frequency", 
+     main="Nose Scores for 362 frame model")
+hist(as.numeric(frames780_pointscores_noses$value), breaks=50, xlab="Nose Scores", ylab="Frequency", 
+     main="Nose Scores for 780 frame model")
+```
+Eye L
+```{r}
+frames107_pointscores_eyel <- frames107_pointscores_melted %>%
+  filter(variable == "eyeL")
+frames227_pointscores_eyel <- frames227_pointscores_melted %>%
+  filter(variable == "eyeL")
+frames362_pointscores_eyel <- frames362_pointscores_melted %>%
+  filter(variable == "eyeL")
+frames780_pointscores_eyel <- frames780_pointscores_melted %>%
+  filter(variable == "eyeL")
+
+#NA count
+sum(is.na(frames107_pointscores_eyel))
+sum(is.na(frames227_pointscores_eyel))
+sum(is.na(frames362_pointscores_eyel))
+sum(is.na(frames780_pointscores_eyel))
+
+#histos
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms)
+hist(as.numeric(frames107_pointscores_eyel$value), breaks=50, xlab="EyeL Scores", ylab="Frequency", 
+     main="EyeL Scores for 107 frame model")
+hist(as.numeric(frames227_pointscores_eyel$value), breaks=50, xlab="EyeL Scores", ylab="Frequency", 
+     main="EyeL Scores for 227 frame model")
+hist(as.numeric(frames362_pointscores_eyel$value), breaks=50, xlab="EyeL Scores", ylab="Frequency", 
+     main="EyeL Scores for 362 frame model")
+hist(as.numeric(frames780_pointscores_eyel$value), breaks=50, xlab="EyeL Scores", ylab="Frequency", 
+     main="EyeL Scores for 780 frame model")
+```
+
+
+Eye R
+```{r}
+frames107_pointscores_eyer <- frames107_pointscores_melted %>%
+  filter(variable == "eyeR")
+frames227_pointscores_eyer <- frames227_pointscores_melted %>%
+  filter(variable == "eyeR")
+frames362_pointscores_eyer <- frames362_pointscores_melted %>%
+  filter(variable == "eyeR")
+frames780_pointscores_eyer <- frames780_pointscores_melted %>%
+  filter(variable == "eyeR")
+
+#NA count
+sum(is.na(frames107_pointscores_eyer))
+sum(is.na(frames227_pointscores_eyer))
+sum(is.na(frames362_pointscores_eyer))
+sum(is.na(frames780_pointscores_eyer))
+
+#histos
+layout_histograms <- matrix(1:3, ncol=1)
+layout(layout_histograms)
+hist(as.numeric(frames107_pointscores_eyer$value), breaks=50, xlab="EyeR Scores", ylab="Frequency", 
+     main="EyeR Scores for 107 frame model")
+hist(as.numeric(frames227_pointscores_eyer$value), breaks=50, xlab="EyeR Scores", ylab="Frequency", 
+     main="EyeR Scores for 227 frame model")
+hist(as.numeric(frames362_pointscores_eyer$value), breaks=50, xlab="EyeR Scores", ylab="Frequency", 
+     main="EyeR Scores for 362 frame model")
+hist(as.numeric(frames780_pointscores_eyer$value), breaks=50, xlab="EyeR Scores", ylab="Frequency", 
+     main="EyeR Scores for 780 frame model")
+```
+
+
+Head
+```{r}
+frames107_pointscores_head <- frames107_pointscores_melted %>%
+  filter(variable == "head")
+frames227_pointscores_head <- frames227_pointscores_melted %>%
+  filter(variable == "head")
+frames362_pointscores_head <- frames362_pointscores_melted %>%
+  filter(variable == "head")
+frames780_pointscores_head <- frames780_pointscores_melted %>%
+  filter(variable == "head")
+
+#NA count
+sum(is.na(frames107_pointscores_head))
+sum(is.na(frames227_pointscores_head))
+sum(is.na(frames362_pointscores_head))
+sum(is.na(frames780_pointscores_head))
+
+#histos
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms)
+hist(as.numeric(frames107_pointscores_head$value), breaks=50, xlab="Head Scores", ylab="Frequency", 
+     main="Head Scores for 107 frame model")
+hist(as.numeric(frames227_pointscores_head$value), breaks=50, xlab="Head Scores", ylab="Frequency", 
+     main="Head Scores for 227 frame model")
+hist(as.numeric(frames362_pointscores_head$value), breaks=50, xlab="Head Scores", ylab="Frequency", 
+     main="Head Scores for 362 frame model")
+hist(as.numeric(frames780_pointscores_head$value), breaks=50, xlab="Head Scores", ylab="Frequency", 
+     main="Head Scores for 780 frame model")
+```
+
+Spine1
+```{r}
+frames107_pointscores_spine1 <- frames107_pointscores_melted %>%
+  filter(variable == "spine1")
+frames227_pointscores_spine1 <- frames227_pointscores_melted %>%
+  filter(variable == "spine1")
+frames362_pointscores_spine1 <- frames362_pointscores_melted %>%
+  filter(variable == "spine1")
+frames780_pointscores_spine1 <- frames780_pointscores_melted %>%
+  filter(variable == "spine1")
+
+#NA count
+sum(is.na(frames107_pointscores_spine1))
+sum(is.na(frames227_pointscores_spine1))
+sum(is.na(frames362_pointscores_spine1))
+sum(is.na(frames780_pointscores_spine1))
+
+#histos
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms)
+hist(as.numeric(frames107_pointscores_spine1$value), breaks=50, xlab="Spine1 Scores", ylab="Frequency", 
+     main="Spine1 Scores for 107 frame model")
+hist(as.numeric(frames227_pointscores_spine1$value), breaks=50, xlab="Spine1 Scores", ylab="Frequency", 
+     main="Spine1 Scores for 227 frame model")
+hist(as.numeric(frames362_pointscores_spine1$value), breaks=50, xlab="Spine1 Scores", ylab="Frequency", 
+     main="Spine1 Scores for 362 frame model")
+hist(as.numeric(frames780_pointscores_spine1$value), breaks=50, xlab="Spine1 Scores", ylab="Frequency", 
+     main="Spine1 Scores for 780 frame model")
+```
+
+Spine2
+```{r}
+frames107_pointscores_spine2 <- frames107_pointscores_melted %>%
+  filter(variable == "spine2")
+frames227_pointscores_spine2 <- frames227_pointscores_melted %>%
+  filter(variable == "spine2")
+frames362_pointscores_spine2 <- frames362_pointscores_melted %>%
+  filter(variable == "spine2")
+frames780_pointscores_spine2 <- frames780_pointscores_melted %>%
+  filter(variable == "spine2")
+
+#NA count
+sum(is.na(frames107_pointscores_spine2))
+sum(is.na(frames227_pointscores_spine2))
+sum(is.na(frames362_pointscores_spine2))
+sum(is.na(frames780_pointscores_spine2))
+
+#histos
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms)
+hist(as.numeric(frames107_pointscores_spine2$value), breaks=50, xlab="Spine2 Scores", ylab="Frequency", 
+     main="Spine2 Scores for 107 frame model")
+hist(as.numeric(frames227_pointscores_spine2$value), breaks=50, xlab="Spine2 Scores", ylab="Frequency", 
+     main="Spine2 Scores for 227 frame model")
+hist(as.numeric(frames362_pointscores_spine2$value), breaks=50, xlab="Spine2 Scores", ylab="Frequency", 
+     main="Spine2 Scores for 362 frame model")
+hist(as.numeric(frames780_pointscores_spine2$value), breaks=50, xlab="Spine2 Scores", ylab="Frequency", 
+     main="Spine2 Scores for 780 frame model")
+```
+
+Caudal
+```{r}
+frames107_pointscores_caudal <- frames107_pointscores_melted %>%
+  filter(variable == "caudal")
+frames227_pointscores_caudal <- frames227_pointscores_melted %>%
+  filter(variable == "caudal")
+frames362_pointscores_caudal <- frames362_pointscores_melted %>%
+  filter(variable == "caudal")
+frames780_pointscores_caudal <- frames362_pointscores_melted %>%
+  filter(variable == "caudal")
+
+#NA count
+sum(is.na(frames107_pointscores_caudal))
+sum(is.na(frames227_pointscores_caudal))
+sum(is.na(frames362_pointscores_caudal))
+sum(is.na(frames780_pointscores_caudal))
+
+#histos
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms)
+hist(as.numeric(frames107_pointscores_caudal$value), breaks=50, xlab="Caudal Scores", ylab="Frequency", 
+     main="Caudal Scores for 107 frame model")
+hist(as.numeric(frames227_pointscores_caudal$value), breaks=50, xlab="Caudal Scores", ylab="Frequency", 
+     main="Caudal Scores for 227 frame model")
+hist(as.numeric(frames362_pointscores_caudal$value), breaks=50, xlab="Caudal Scores", ylab="Frequency", 
+     main="Caudal Scores for 362 frame model")
+hist(as.numeric(frames780_pointscores_caudal$value), breaks=50, xlab="Caudal Scores", ylab="Frequency", 
+     main="Caudal Scores for 780 frame model")
+```
+
+Tail
+```{r}
+frames107_pointscores_tail <- frames107_pointscores_melted %>%
+  filter(variable == "tail")
+frames227_pointscores_tail <- frames227_pointscores_melted %>%
+  filter(variable == "tail")
+frames362_pointscores_tail <- frames362_pointscores_melted %>%
+  filter(variable == "tail")
+frames780_pointscores_tail <- frames780_pointscores_melted %>%
+  filter(variable == "tail")
+
+#NA count
+sum(is.na(frames107_pointscores_tail))
+sum(is.na(frames227_pointscores_tail))
+sum(is.na(frames362_pointscores_tail))
+sum(is.na(frames780_pointscores_tail))
+
+#histos
+layout_histograms <- matrix(1:4, ncol=1)
+layout(layout_histograms)
+hist(as.numeric(frames107_pointscores_tail$value), breaks=50, xlab="Tail Scores", ylab="Frequency", 
+     main="Tail Scores for 107 frame model")
+hist(as.numeric(frames227_pointscores_tail$value), breaks=50, xlab="Tail Scores", ylab="Frequency", 
+     main="Tail Scores for 227 frame model")
+hist(as.numeric(frames362_pointscores_tail$value), breaks=50, xlab="Tail Scores", ylab="Frequency", 
+     main="Tail Scores for 362 frame model")
+hist(as.numeric(frames780_pointscores_tail$value), breaks=50, xlab="Tail Scores", ylab="Frequency", 
+     main="Tail Scores for 780 frame model")
+```
+
+Average Trends across models:
+
+```{r}
+#summary df of each model:
+
+frames107_averagescores <- frames107_pointscores_melted %>%
+  group_by(variable) %>%
+  summarize(averagescore = mean(value, na.rm=TRUE), sdscore = sd(value, na.rm=TRUE)) %>%
+  mutate(model = 107)
+
+frames227_averagescores <- frames227_pointscores_melted %>%
+  group_by(variable) %>%
+  summarize(averagescore = mean(value, na.rm=TRUE), sdscore = sd(value, na.rm=TRUE)) %>%
+  mutate(model = 227)
+
+frames362_averagescores <- frames362_pointscores_melted %>%
+  group_by(variable) %>%
+  summarize(averagescore = mean(value, na.rm=TRUE), sdscore = sd(value, na.rm=TRUE)) %>%
+  mutate(model = 362)
+
+frames780_averagescores <- frames780_pointscores_melted %>%
+  group_by(variable) %>%
+  summarize(averagescore = mean(value, na.rm=TRUE), sdscore = sd(value, na.rm=TRUE)) %>%
+  mutate(model = 780)
+
+averagescores <- rbind(frames107_averagescores, 
+                       frames227_averagescores, 
+                       frames362_averagescores, 
+                       frames780_averagescores)
+
+ggplot(averagescores, aes(x=model, y=averagescore, group=variable, color=variable))+
+  geom_point(size=2)+
+  geom_line(size=0.6)+
+  geom_errorbar(aes(ymin=averagescore-sdscore, ymax=averagescore+sdscore), width=.2)+
+  xlab("Number of Frames in Model")+
+  ylab("Average MLE +/- SD")+
+  theme_classic()+
+  theme(text=element_text(size=15))
+
+```
+

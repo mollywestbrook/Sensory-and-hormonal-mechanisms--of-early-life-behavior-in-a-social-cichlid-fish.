@@ -1,0 +1,276 @@
+---
+title: 'Error Analysis: Capped ID vs Uncapped ID'
+author: "Molly Westbrook"
+date: "2023-08-17"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rhdf5)
+library(here)
+library(tidyverse)
+library(zoo)
+library(reshape2)
+library(data.table)
+library(reticulate)
+library(patchwork)
+```
+File import
+```{r}
+cappedhiqual<- "model_comparison_6-13-2023.015_HiQualCamTestVid2_25fps_780frames_cappedlabels.analysis.h5"
+cappedhiqual_bits <- h5ls(here(cappedhiqual))
+uncappedhiqual<- "model_comparison_6-13-2023.014_HiQualCamTestVid2_25fps_780frames_uncappedlabels.analysis.h5"
+uncappedhiqual_bits <- h5ls(here(cappedhiqual))
+cappedraspi<- "model_comparison_6-13-2023.016_RaspiTestVid2_780_cappedlabels.analysis.h5"
+cappedraspi_bits <- h5ls(here(cappedraspi))
+uncappedraspi<- "model_comparison_6-13-2023.017_RaspiTestVid2_780_uncappedlabels.analysis.h5"
+uncappedraspi_bits <- h5ls(here(uncappedraspi))
+```
+
+## Hi Quality Videos
+
+Instance Scores
+```{r}
+cappedhiqual_instancescores <- as.data.frame(h5read(here(cappedhiqual), "/instance_scores"))
+cappedhiqual_instancescores <- cappedhiqual_instancescores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+cappedhiqual_instancescores <- as.matrix(cappedhiqual_instancescores)
+
+uncappedhiqual_instancescores <- as.data.frame(h5read(here(uncappedhiqual), "/instance_scores"))
+uncappedhiqual_instancescores <- uncappedhiqual_instancescores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+uncappedhiqual_instancescores <- as.matrix(uncappedhiqual_instancescores)
+
+layout_histograms <- matrix(1:2, ncol=1)
+hist(uncappedhiqual_instancescores, breaks=50, xlab="Instance Scores", ylab="Frequency", 
+     main="Instance Scores for Uncapped Hi Quality Video")
+hist(cappedhiqual_instancescores, breaks=50, xlab="Instance Scores", ylab="Frequency", 
+     main="Instance Scores for Capped ID Hi Quality Video")
+```
+Point Scores
+```{r}
+cappedhiqual_pointscores <- as.data.frame(h5read(here(cappedhiqual), "/point_scores"))
+cappedhiqual_pointscores <- cappedhiqual_pointscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+cappedhiqual_pointscores <- as.matrix(cappedhiqual_pointscores)
+
+uncappedhiqual_pointscores <- as.data.frame(h5read(here(uncappedhiqual), "/point_scores"))
+uncappedhiqual_pointscores <- uncappedhiqual_pointscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+uncappedhiqual_pointscores <- as.matrix(uncappedhiqual_pointscores)
+
+layout_histograms <- matrix(1:2, ncol=1)
+hist(uncappedhiqual_pointscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Point Scores for Uncapped Hi Quality Video")
+hist(cappedhiqual_pointscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Point Scores for Capped ID Hi Quality Video")
+```
+Tracking Scores
+```{r}
+cappedhiqual_trackingscores <- as.data.frame(h5read(here(cappedhiqual), "/tracking_scores"))
+cappedhiqual_trackingscores <- cappedhiqual_trackingscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+cappedhiqual_trackingscores <- as.matrix(cappedhiqual_trackingscores)
+
+uncappedhiqual_trackingscores <- as.data.frame(h5read(here(uncappedhiqual), "/tracking_scores"))
+uncappedhiqual_trackingscores <- uncappedhiqual_trackingscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+uncappedhiqual_trackingscores <- as.matrix(uncappedhiqual_trackingscores)
+
+layout_histograms <- matrix(1:2, ncol=1)
+hist(uncappedhiqual_trackingscores, breaks=50, xlab="Tracking Scores", ylab="Frequency", 
+     main="Tracking Scores for Uncapped Hi Quality Video")
+hist(cappedhiqual_trackingscores, breaks=50, xlab="Tracking Scores", ylab="Frequency", 
+     main="Tracking Scores for Capped ID Hi Quality Video")
+```
+Number of Identities Generated
+```{r}
+cappedhiqual_numtracks <- length(as.vector(h5read(here(cappedhiqual), "/track_names")))
+uncappedhiqual_numtracks <- length(as.vector(h5read(here(uncappedhiqual), "/track_names")))
+
+numtracks <- c(cappedhiqual_numtracks, uncappedhiqual_numtracks)
+numframes <- c("Capped ID", "Uncapped ID")
+numtracksdf <- as.data.frame(cbind(numframes, numtracks))
+
+ggplot(numtracksdf, aes(x=numframes, y=as.numeric(numtracks)))+
+  geom_bar(stat="identity")+
+  xlab("Capped vs Uncapped")+
+  ylab("Number of Track Identities Generated")+
+  theme_classic()+
+  theme(text=element_text(size=15))
+```
+Average Point Scores across models:
+```{r}
+#data prep
+cappedhiqual_nodes <- t(as.data.frame(h5read(here(cappedhiqual), "/node_names")))
+cappedhiqual_nodes <- rep(cappedhiqual_nodes, cappedhiqual_numtracks)
+cappedhiqual_pointscores <- as.data.frame(cappedhiqual_pointscores)
+names(cappedhiqual_pointscores) <- c(cappedhiqual_nodes) #haha yes!
+cappedhiqual_pointscores$frame <- seq_along(cappedhiqual_pointscores[,1])
+cappedhiqual_pointscores_melted <- reshape2::melt(cappedhiqual_pointscores, id=c("frame"))
+
+uncappedhiqual_nodes <- t(as.data.frame(h5read(here(uncappedhiqual), "/node_names")))
+uncappedhiqual_nodes <- rep(uncappedhiqual_nodes, uncappedhiqual_numtracks)
+uncappedhiqual_pointscores <- as.data.frame(uncappedhiqual_pointscores)
+names(uncappedhiqual_pointscores) <- c(uncappedhiqual_nodes) #haha yes!
+uncappedhiqual_pointscores$frame <- seq_along(uncappedhiqual_pointscores[,1])
+uncappedhiqual_pointscores_melted <- reshape2::melt(uncappedhiqual_pointscores, id=c("frame"))
+
+```
+
+NA Count:
+```{r}
+#only need to grab one point, we'll do head
+cappedhiqual_pointscores_head <- cappedhiqual_pointscores_melted %>%
+  filter(variable == "head")
+uncappedhiqual_pointscores_head <- uncappedhiqual_pointscores_melted %>%
+  filter(variable == "head")
+
+sum(is.na(cappedhiqual_pointscores_head))
+sum(is.na(uncappedhiqual_pointscores_head))
+```
+
+Average Scores
+```{r}
+cappedhiqual_averagescores <- cappedhiqual_pointscores_melted %>%
+  group_by(variable) %>%
+  summarize(averagescore = mean(value, na.rm=TRUE), sdscore = sd(value, na.rm=TRUE)) %>%
+  mutate(model = "Capped ID")
+uncappedhiqual_averagescores <- uncappedhiqual_pointscores_melted %>%
+  group_by(variable) %>%
+  summarize(averagescore = mean(value, na.rm=TRUE), sdscore = sd(value, na.rm=TRUE)) %>%
+  mutate(model = "Uncapped ID")
+averagescores <- rbind(cappedhiqual_averagescores, uncappedhiqual_averagescores)
+
+ggplot(averagescores, aes(x=model, y=averagescore, group=variable, color=variable))+
+  geom_point(size=2)+
+  geom_line(size=0.6)+
+  geom_errorbar(aes(ymin=averagescore-sdscore, ymax=averagescore+sdscore), width=.2)+
+  xlab("Capped vs Uncapped ID")+
+  ylab("Average MLE +/- SD")+
+  theme_classic()+
+  theme(text=element_text(size=15))
+
+
+```
+
+## Raspberry Pi Videos
+
+Instance Scores
+```{r}
+cappedraspi_instancescores <- as.data.frame(h5read(here(cappedraspi), "/instance_scores"))
+cappedraspi_instancescores <- cappedraspi_instancescores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+cappedraspi_instancescores <- as.matrix(cappedraspi_instancescores)
+
+uncappedraspi_instancescores <- as.data.frame(h5read(here(uncappedraspi), "/instance_scores"))
+uncappedraspi_instancescores <- uncappedraspi_instancescores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+uncappedraspi_instancescores <- as.matrix(uncappedraspi_instancescores)
+
+layout_histograms <- matrix(1:2, ncol=1)
+hist(uncappedraspi_instancescores, breaks=50, xlab="Instance Scores", ylab="Frequency", 
+     main="Instance Scores for Uncapped Raspberry Pi Video")
+hist(cappedraspi_instancescores, breaks=50, xlab="Instance Scores", ylab="Frequency", 
+     main="Instance Scores for Capped ID Raspberry Pi Video")
+```
+
+
+Point Scores
+```{r}
+cappedraspi_pointscores <- as.data.frame(h5read(here(cappedraspi), "/point_scores"))
+cappedraspi_pointscores <- cappedraspi_pointscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+cappedraspi_pointscores <- as.matrix(cappedraspi_pointscores)
+
+uncappedraspi_pointscores <- as.data.frame(h5read(here(uncappedraspi), "/point_scores"))
+uncappedraspi_pointscores <- uncappedraspi_pointscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+uncappedraspi_pointscores <- as.matrix(uncappedraspi_pointscores)
+
+layout_histograms <- matrix(1:2, ncol=1)
+hist(uncappedraspi_pointscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Point Scores for Uncapped Raspberry Pi Video")
+hist(cappedraspi_pointscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Point Scores for Capped ID Raspberry Pi Video")
+```
+
+Tracking Scores
+```{r}
+cappedraspi_trackingscores <- as.data.frame(h5read(here(cappedraspi), "/tracking_scores"))
+cappedraspi_trackingscores <- cappedraspi_trackingscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+cappedraspi_trackingscores <- as.matrix(cappedraspi_trackingscores)
+
+uncappedraspi_trackingscores <- as.data.frame(h5read(here(uncappedraspi), "/tracking_scores"))
+uncappedraspi_trackingscores <- uncappedraspi_trackingscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+uncappedraspi_trackingscores <- as.matrix(uncappedraspi_trackingscores)
+
+layout_histograms <- matrix(1:2, ncol=1)
+hist(uncappedraspi_trackingscores, breaks=50, xlab="Tracking Scores", ylab="Frequency", 
+     main="Tracking Scores for Uncapped Raspberry Pi Video")
+hist(cappedraspi_trackingscores, breaks=50, xlab="Tracking Scores", ylab="Frequency", 
+     main="Tracking Scores for Capped ID Raspberry Pi Video")
+```
+
+Number of Identities Generated
+```{r}
+cappedraspi_numtracks <- length(as.vector(h5read(here(cappedraspi), "/track_names")))
+uncappedraspi_numtracks <- length(as.vector(h5read(here(uncappedraspi), "/track_names")))
+
+numtracks <- c(cappedraspi_numtracks, uncappedraspi_numtracks)
+numframes <- c("Capped ID", "Uncapped ID")
+numtracksdf <- as.data.frame(cbind(numframes, numtracks))
+
+ggplot(numtracksdf, aes(x=numframes, y=as.numeric(numtracks)))+
+  geom_bar(stat="identity")+
+  xlab("Capped vs Uncapped")+
+  ylab("Number of Track Identities Generated")+
+  theme_classic()+
+  theme(text=element_text(size=15))
+```
+
+Average Point Scores across models:
+```{r}
+#data prep
+cappedraspi_nodes <- t(as.data.frame(h5read(here(cappedraspi), "/node_names")))
+cappedraspi_nodes <- rep(cappedraspi_nodes, cappedraspi_numtracks)
+cappedraspi_pointscores <- as.data.frame(cappedraspi_pointscores)
+names(cappedraspi_pointscores) <- c(cappedraspi_nodes) #haha yes!
+cappedraspi_pointscores$frame <- seq_along(cappedraspi_pointscores[,1])
+cappedraspi_pointscores_melted <- reshape2::melt(cappedraspi_pointscores, id=c("frame"))
+
+uncappedraspi_nodes <- t(as.data.frame(h5read(here(uncappedraspi), "/node_names")))
+uncappedraspi_nodes <- rep(uncappedraspi_nodes, uncappedraspi_numtracks)
+uncappedraspi_pointscores <- as.data.frame(uncappedraspi_pointscores)
+names(uncappedraspi_pointscores) <- c(uncappedraspi_nodes) #haha yes!
+uncappedraspi_pointscores$frame <- seq_along(uncappedraspi_pointscores[,1])
+uncappedraspi_pointscores_melted <- reshape2::melt(uncappedraspi_pointscores, id=c("frame"))
+```
+
+NA Count
+```{r}
+#only need to grab one point, we'll do head
+cappedraspi_pointscores_head <- cappedraspi_pointscores_melted %>%
+  filter(variable == "head")
+uncappedraspi_pointscores_head <- uncappedraspi_pointscores_melted %>%
+  filter(variable == "head")
+
+sum(is.na(cappedraspi_pointscores_head))
+sum(is.na(uncappedraspi_pointscores_head))
+```
+
+
+Average Scores
+```{r}
+cappedraspi_averagescores <- cappedraspi_pointscores_melted %>%
+  group_by(variable) %>%
+  summarize(averagescore = mean(value, na.rm=TRUE), sdscore = sd(value, na.rm=TRUE)) %>%
+  mutate(model = "Capped ID")
+uncappedraspi_averagescores <- uncappedraspi_pointscores_melted %>%
+  group_by(variable) %>%
+  summarize(averagescore = mean(value, na.rm=TRUE), sdscore = sd(value, na.rm=TRUE)) %>%
+  mutate(model = "Uncapped ID")
+averagescores <- rbind(cappedraspi_averagescores, uncappedraspi_averagescores)
+
+ggplot(averagescores, aes(x=model, y=averagescore, group=variable, color=variable))+
+  geom_point(size=2)+
+  geom_line(size=0.6)+
+  geom_errorbar(aes(ymin=averagescore-sdscore, ymax=averagescore+sdscore), width=.2)+
+  xlab("Capped vs Uncapped ID")+
+  ylab("Average MLE +/- SD")+
+  theme_classic()+
+  theme(text=element_text(size=15))
+
+
+```

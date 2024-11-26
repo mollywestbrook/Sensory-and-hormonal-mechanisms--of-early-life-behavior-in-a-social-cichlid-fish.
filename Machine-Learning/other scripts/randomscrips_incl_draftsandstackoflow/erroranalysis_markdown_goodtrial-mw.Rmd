@@ -1,0 +1,64 @@
+---
+title: "erroranalysis_markdown_26dpf"
+author: "Molly Westbrook"
+date: "2023-06-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(rhdf5)
+library(here)
+library(tidyverse)
+library(zoo)
+library(reshape2)
+library(data.table)
+library(reticulate)
+library(patchwork)
+```
+
+File Import
+
+```{r}
+goodtrial <- "sleapmodel1_labels.v001.009_20230331_WT031623_26dpf_25fps.analysis.h5"
+goodtrial_bits <- h5ls(here(goodtrial))
+```
+
+Instance Scores
+```{r}
+goodtrial_instancescores <- as.data.frame(h5read(here(goodtrial), "/instance_scores"))
+goodtrial_instancescores <- goodtrial_instancescores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+goodtrial_instancescores <- as.matrix(goodtrial_instancescores)
+hist(goodtrial_instancescores, breaks=50, xlab="Instance Scores", ylab="Frequency", 
+     main="Instance Scores for Corrected Trial")
+```
+
+Point Scores
+```{r}
+goodtrial_pointscores <- as.data.frame(h5read(here(goodtrial), "/point_scores"))
+goodtrial_pointscores <- goodtrial_pointscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+goodtrial_pointscores <- as.matrix(goodtrial_pointscores)
+hist(goodtrial_pointscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Point Scores for Corrected Trial")
+```
+
+Tracking Scores
+```{r}
+goodtrial_trackingscores <- as.data.frame(h5read(here(goodtrial), "/tracking_scores"))
+goodtrial_trackingscores <- goodtrial_trackingscores %>% mutate_all(~ifelse(is.nan(.), NA, .))
+goodtrial_trackingscores <- as.matrix(goodtrial_trackingscores)
+hist(goodtrial_trackingscores, breaks=50, xlab="Point Scores", ylab="Frequency", 
+     main="Tracking Scores for Corrected Trial")
+```
+
+
+Number of Identities Generated
+```{r}
+goodtrial_numtracks <- length(as.vector(h5read(here(goodtrial), "/track_names")))
+goodtrial_numtracks
+```
+
+

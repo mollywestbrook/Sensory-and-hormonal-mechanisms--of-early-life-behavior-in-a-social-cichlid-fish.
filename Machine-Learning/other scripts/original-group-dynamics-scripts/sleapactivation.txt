@@ -1,0 +1,4 @@
+note: two sleap enviromnets
+	- sleap, exists in r-miniconda for use with reticulate
+	- sleap.for.analysis, which exists within the machine-learning working directory
+		-this should work for use with sleapanalysis.py

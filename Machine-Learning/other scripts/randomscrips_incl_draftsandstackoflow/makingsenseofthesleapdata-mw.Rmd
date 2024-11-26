@@ -1,0 +1,506 @@
+---
+title: "WT031623_26dpf Breakdown"
+author: "Molly Westbrook"
+date: "2023-07-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Importing libraries and dataframes:
+```{r}
+library(rhdf5)
+library(here)
+library(tidyverse)
+library(zoo)
+library(reshape2)
+library(data.table)
+library(zoo)
+library(REdaS)
+```
+
+```{r}
+trialdata <- read.csv(here("WT031623_26dpf_readyforanalysis.csv"))
+```
+
+## Basic Stuff
+
+Positional graph of each individual across the assay
+```{r}
+individ <- unique(trialdata$track)
+figuretitle <- paste('Individual', individ, sep="_")
+
+triallist <- split(dataframe_full, dataframe_full$track)
+
+plotposition <- function(n) {
+  ggplot(data=n, aes(x=x, y=y, color=as.factor(nodes)))+
+    geom_point(alpha=0.4, size=0.5)+
+    geom_path(alpha=0.4, linewidth=0.3)+
+    #title(paste('Individual', n$track, sep="_"))+
+    xlab("X Direction (mm)")+
+    ylab("Y Direction (mm)")+
+    labs(color="Skeletal Nodes")+
+    theme_classic()+
+    coord_cartesian(x=c(0, 1250), y=c(0, 1000))+
+    theme(text = element_text(size = 15))  
+}
+
+positionslist <- lapply(triallist, plotposition)
+names(positionslist) <- figuretitle
+lapply(names(positionslist), 
+       function(x) ggsave(filename=paste(x,"_positions",".png",sep=""),
+                          plot=positionslist[[x]], width = 13, height = 7, units = "in",
+                          path=here("HotFigures")))
+```
+
+Velocity calculations, and velocity over time:
+```{r}
+#for this, let's just focus on the head point:
+#we'll also toss out the S and X behaviors
+
+head_df <- trialdata %>%
+  filter(nodes == "head") %>%
+  mutate(distance = sqrt((x - lag(x))^2) + ((y - lag(y))^2)) %>%
+  mutate(velocity_mmpersec = distance*25) %>%
+  mutate(second = frame/25) %>%
+  mutate(Behavior = na_if(Behavior, "S")) %>%
+  mutate(Behavior = na_if(Behavior, "X")) %>%
+  mutate(Behavior = na_if(Behavior, ""))
+
+#now we can plot velocity over time, no color coding to start
+individ <- unique(trialdata$track)
+figuretitle <- paste('Individual', individ, sep="_")
+headlist <- split(head_df, head_df$track)
+
+#each plot saved individually here
+plotheadvelocity <- function(n) {
+  ggplot(n, aes(y=velocity_mmpersec, x=second))+
+    geom_point(size=0.5)+
+    geom_path(linewidth=0.4)+
+    xlab("Time (Seconds")+
+    ylab("Velocity (mm/sec)")+
+    theme_classic()+
+    theme(text = element_text(size = 15))  
+}
+
+headvelocitylist <- lapply(headlist, plotheadvelocity)
+names(headvelocitylist) <- figuretitle
+lapply(names(headvelocitylist), 
+       function(x) ggsave(filename=paste(x,"_velocity",".png",sep=""),
+                          plot=headvelocitylist[[x]], width = 13, height = 7, units = "in",
+                          path=here("HotFigures")))
+
+#all plots displayed in a facet here
+facetvelocity <- ggplot(head_df, aes(y=velocity_mmpersec, x=second))+
+    geom_point(size=0.5)+
+    geom_path(linewidth=0.4)+
+    xlab("Time (Seconds")+
+    ylab("Velocity (mm/sec)")+
+    theme_classic()+
+    theme(text = element_text(size = 12))+
+    facet_wrap(~track, ncol=1)
+  
+ggsave(filename="facetvelocity.png" ,plot=facetvelocity, width = 13, 
+                          height = 7, units = "in",
+                          path=here("HotFigures"))
+
+#and now with a color code for behavior
+plotheadvelocity_colorcoded <- function(n) {
+  ggplot(n, aes(y=velocity_mmpersec, x=second))+
+    geom_point(mapping=aes(color=Behavior, size=Behavior))+
+    geom_path(alpha=0.5, linewidth=0.4)+
+    scale_size_manual(values= c(5,5,5,5))+
+    xlab("Time (Seconds)")+
+    ylab("Velocity (mm/sec)")+
+    theme_classic()+
+    theme(text = element_text(size = 15))  
+}
+
+headvelocitylist_colorcoded <- lapply(headlist, plotheadvelocity_colorcoded)
+names(headvelocitylist_colorcoded) <- figuretitle
+lapply(names(headvelocitylist_colorcoded), 
+       function(x) ggsave(filename=paste(x,"_velocity_colorcoded",".png",sep=""),
+                          plot=headvelocitylist_colorcoded[[x]], width = 13, 
+                          height = 7, units = "in",
+                          path=here("HotFigures")))
+
+facetvelocity_colors <-   
+  ggplot(head_df, aes(y=velocity_mmpersec, x=second))+
+    geom_point(mapping=aes(color=Behavior, size=Behavior))+
+    geom_path(alpha=0.5, linewidth=0.4)+
+    scale_size_manual(values= c(2,2,2,2))+
+    xlab("Time (Seconds)")+
+    ylab("Velocity (mm/sec)")+
+    theme_classic()+
+    theme(text = element_text(size = 12))+
+    facet_wrap(~track, ncol=1)
+  
+ggsave(filename="facetvelocity_colors.png" ,plot=facetvelocity_colors, width = 13, 
+                          height = 7, units = "in",
+                          path=here("HotFigures"))
+```
+
+Logical next step after velocity: acceleration
+```{r}
+#So, from our distance vector we can now calculate acceleration:
+head_df <- head_df %>%
+  group_by(track) %>%
+  mutate(acceleration = velocity_mmpersec - lag(velocity_mmpersec))
+
+individ <- unique(trialdata$track)
+figuretitle <- paste('Individual', individ, sep="_")
+headlist <- split(head_df, head_df$track)
+
+plotheadacceleration_colorcoded <- function(n) {
+  ggplot(n, aes(y=acceleration, x=second))+
+    geom_point(mapping=aes(color=Behavior, size=Behavior))+
+    geom_path(alpha=0.5, linewidth=0.4)+
+    scale_size_manual(values= c(5,5,5,5))+
+    xlab("Time (Seconds)")+
+    ylab("Acceleration (mm/sec/sec)")+
+    theme_classic()+
+    theme(text = element_text(size = 15))  
+}
+headaccelerationlist_colorcoded <- lapply(headlist, plotheadacceleration_colorcoded)
+headaccelerationlist_colorcoded
+names(headaccelerationlist_colorcoded) <- figuretitle
+lapply(names(headaccelerationlist_colorcoded), 
+       function(x) ggsave(filename=paste(x,"_acceleration_colorcoded",".png",sep=""),
+                          plot=headaccelerationlist_colorcoded[[x]], width = 13, 
+                          height = 7, units = "in",
+                          path=here("HotFigures")))
+
+```
+
+So now that we have some figures plotted, let's take a look at average velocity:
+```{r}
+averagevelocity_nooutliers <- ggplot(head_df, aes(x=track, y=velocity_mmpersec, group=as.factor(track)))+
+  geom_boxplot(outlier.shape=NA)+
+  xlab("Fish Identity")+
+  ylab("Median Velocity")+
+  theme_classic()+
+  coord_cartesian(y=c(0, 500))+
+  theme(text=element_text(size=15))
+averagevelocity_nooutliers
+
+ggsave(filename="averagevelocity_nooutliers.png", plot=averagevelocity_nooutliers, 
+       width = 13, height = 7, units = "in", path=here("HotFigures"))
+  
+averagevelocity_withoutliers <- ggplot(head_df, aes(x=track, y=velocity_mmpersec, group=as.factor(track)))+
+  geom_boxplot(outlier.size=0.5)+
+  xlab("Fish Identity")+
+  ylab("Median Velocity")+
+  theme_classic()+
+  theme(text=element_text(size=15))
+averagevelocity_withoutliers
+
+ggsave(filename="averagevelocity_withoutliers.png", plot=averagevelocity_withoutliers, 
+       width = 13, height = 7, units = "in", path=here("HotFigures"))
+
+#then, we can filter velocity to only chases. Let's see what that looks like:
+
+head_df_chasesonly <- head_df %>%
+  filter(Behavior == "C")
+
+averagevelocity_chasesonly <- ggplot(head_df_chasesonly, 
+                                     aes(x=track, y=velocity_mmpersec, group=as.factor(track)))+
+  geom_boxplot(outlier.size=0.5)+
+  xlab("Fish Identity")+
+  ylab("Median Velocity")+
+  theme_classic()+
+  theme(text=element_text(size=15))
+averagevelocity_chasesonly
+
+ggsave(filename="averagevelocity_chasesonly.png", plot=averagevelocity_chasesonly, 
+       width = 7, height = 5, units = "in", path=here("HotFigures"))
+```
+
+And we'll wrap up these sort of instantaneous motion ideas with the average acceleration
+```{r}
+averageacceleration <- ggplot(head_df, aes(x=track, y=acceleration, group=as.factor(track)))+
+  geom_boxplot(outlier.size=0.5)+
+  xlab("Fish Identity")+
+  ylab("Median Acceleration (mm/sec/sec)")+
+  theme_classic()+
+  #coord_cartesian(y=c(0, 500))+
+  theme(text=element_text(size=15))
+averageacceleration
+
+averageacceleration_nooutliers <- ggplot(head_df, aes(x=track, y=acceleration, group=as.factor(track)))+
+  geom_boxplot(outlier.shape=NA)+
+  xlab("Fish Identity")+
+  ylab("Median Acceleration (mm/sec/sec)")+
+  theme_classic()+
+  coord_cartesian(y=c(-10, 10))+
+  theme(text=element_text(size=15))
+averageacceleration_nooutliers
+
+#chases only
+head_df_chasesonly <- head_df %>%
+  filter(Behavior == "C")
+
+averageacceleration_chasesonly <- ggplot(head_df_chasesonly, 
+                                         aes(x=track, y=acceleration, group=as.factor(track)))+
+  geom_boxplot(outlier.shape=NA)+
+  xlab("Fish Identity")+
+  ylab("Median Acceleration (mm/sec/sec)")+
+  theme_classic()+
+  coord_cartesian(y=c(-700, 500))+
+  theme(text=element_text(size=15))
+averageacceleration_chasesonly
+
+ggsave(filename="averageacceleration.png", plot=averageacceleration, 
+       width = 13, height = 7, units = "in", path=here("HotFigures"))
+ggsave(filename="averageacceleration_nooutliers.png", plot=averageacceleration_nooutliers, 
+       width = 13, height = 7, units = "in", path=here("HotFigures"))
+ggsave(filename="averageacceleration_chasesonly.png", plot=averageacceleration_chasesonly, 
+       width = 7, height = 5, units = "in", path=here("HotFigures"))
+
+```
+
+
+Vector field of chases, perhaps like 2 or 3
+
+```{r}
+#let's use a clean head_df so we can calculate the vector components
+#and we'll also clean up the behaviors as well
+head_df_vectors <- trialdata %>%
+  filter(nodes == "head") %>%
+  mutate(vx = ((x - lag(x))*25)) %>%
+  mutate(vy = ((y - lag(y))*25)) %>%
+  mutate(second = frame/25) %>%
+  mutate(Behavior = na_if(Behavior, "S")) %>%
+  mutate(Behavior = na_if(Behavior, "X")) %>%
+  mutate(Behavior = na_if(Behavior, ""))
+
+leadlag <- function(lgl, bef = 1, aft = 1) {
+  n <- length(lgl)
+  bef <- min(n, max(0, bef))
+  aft <- min(n, max(0, aft))
+  befx <- if (bef > 0) sapply(seq_len(bef), function(b) c(tail(lgl, n = -b), rep(FALSE, b)))
+  aftx <- if (aft > 0) sapply(seq_len(aft), function(a) c(rep(FALSE, a), head(lgl, n = -a)))
+  rowSums(cbind(befx, lgl, aftx), na.rm = TRUE) > 0
+}
+
+chase_vectors <- head_df_vectors[leadlag(head_df_vectors$Behavior == "C", 10, 10),]
+
+#chase 1:
+chase1 <- chase_vectors %>%
+  group_by(track) %>%
+  slice(1:21)
+chase1plot <- ggplot(chase1, aes(x=x, y=y, group=as.factor(track), color=as.factor(track)))+
+  geom_segment(aes(xend=x+vx, yend=y+vy), arrow=arrow(length=unit(0.1, "cm")), size=0.25)+
+  theme_classic()+
+  ylab("Vector Y Component")+
+  xlab("Vector X Component")+
+  labs(color="Individual")+
+  theme(text=element_text(size=15))
+  
+chase2 <- chase_vectors %>%
+  group_by(track) %>%
+  slice(22:42)
+chase2plot <-  ggplot(chase2, aes(x=x, y=y, group=as.factor(track), color=as.factor(track)))+
+  geom_segment(aes(xend=x+vx, yend=y+vy), arrow=arrow(length=unit(0.1, "cm")), size=0.25)+
+  theme_classic()+
+  ylab("Vector Y Component")+
+  xlab("Vector X Component")+
+  labs(color="Individual")+
+  theme(text=element_text(size=15))
+
+chase3 <- chase_vectors %>%
+  group_by(track) %>%
+  slice(43:63) %>%
+  mutate(distance = sqrt((x - lag(x))^2) + ((y - lag(y))^2)) %>%
+  mutate(velocity_mmpersec = distance*25) %>%
+  mutate(acceleration = velocity_mmpersec - lag(velocity_mmpersec))
+  
+chase3plot <- ggplot(chase3, aes(x=x, y=y, group=as.factor(track), color=as.factor(track)))+
+  geom_segment(aes(xend=x+vx, yend=y+vy), arrow=arrow(length=unit(0.1, "cm")), size=0.25)+
+  theme_classic()+
+  ylab("Vector Y Component")+
+  xlab("Vector X Component")+
+  labs(color="Individual")+
+  theme(text=element_text(size=20))
+#to go with chase three I'd like to do a facet of acceleration + velocity with our fish of interest:
+chase3_velocity <- ggplot(chase3, aes(x=second, y=velocity_mmpersec))+
+  geom_point()+
+  geom_path()+
+  theme_classic()+
+  ylab("Velocity (mm/sec)")+
+  xlab("Time (Seconds)")+
+  theme(text=element_text(size=18))+
+  facet_wrap(~track, ncol=1)
+ggsave("chase3_velocity.png", plot=chase3_velocity, width=4, height=8, unit="in")
+chase3_acceleration <- ggplot(chase3, aes(x=second, y=acceleration))+
+  geom_point()+
+  geom_path()+
+  theme_classic()+
+  ylab("Acceleration (mm/sec/sec)")+
+  xlab("Time (Seconds)")+
+  theme(text=element_text(size=18))+
+  facet_wrap(~track, ncol=1)
+ggsave("chase3_acceleration.png", plot=chase3_acceleration, width=4, height=8, unit="in")
+
+
+chase4 <- chase_vectors %>%
+  group_by(track) %>%
+  slice(64:84)
+chase4plot <- ggplot(chase4, aes(x=x, y=y, group=as.factor(track), color=as.factor(track)))+
+  geom_segment(aes(xend=x+vx, yend=y+vy), arrow=arrow(length=unit(0.1, "cm")), size=0.25)+
+  theme_classic()+
+  ylab("Vector Y Component")+
+  xlab("Vector X Component")+
+  labs(color="Individual")+
+  theme(text=element_text(size=15))
+
+chase5 <- chase_vectors %>%
+  group_by(track) %>%
+  slice(85:105)
+chase5plot <- ggplot(chase5, aes(x=x, y=y, group=as.factor(track), color=as.factor(track)))+
+  geom_segment(aes(xend=x+vx, yend=y+vy), arrow=arrow(length=unit(0.1, "cm")), size=0.25)+
+  theme_classic()+
+  ylab("Vector Y Component")+
+  xlab("Vector X Component")+
+  labs(color="Individual")+
+  theme(text=element_text(size=15))
+
+ggsave(filename="chase1.png", plot=chase1plot, 
+       width = 13, height = 7, units = "in", path=here("HotFigures"))
+ggsave(filename="chase2.png", plot=chase2plot, 
+       width = 13, height = 7, units = "in", path=here("HotFigures"))
+ggsave(filename="chase3.png", plot=chase3plot, 
+       width = 7, height = 5, units = "in", path=here("HotFigures"))
+ggsave(filename="chase4.png", plot=chase4plot, 
+       width = 13, height = 7, units = "in", path=here("HotFigures"))
+ggsave(filename="chase5.png", plot=chase5plot, 
+       width = 13, height = 7, units = "in", path=here("HotFigures"))
+```
+
+
+Tail dynamics
+```{r}
+#in order to model the tail beat, we'll need these:
+#vector between nose and head (this will be our 'base' to measure against)
+#and the vector between spine and caudal (this will be the thing that rotates)
+
+#therefore, we'll arrange the dataset with the things we need first.
+#this will require some casting.
+tailbeats <- trialdata %>%
+  group_by(track) %>%
+  filter(nodes %in% c("nose", "head", "spine1", "caudal"))
+tailbeats <- tailbeats[-c(2)]
+
+tailbeats <- unite(tailbeats, col='x-y', c('x', 'y'), sep='-') #group x and y together for manipulation
+tailbeats <- spread(tailbeats, key=nodes, value="x-y") #spread out so that nodes are in their own column
+tailbeats <- tailbeats %>% #put it in order
+  arrange(track,frame)
+
+#spread it back out so columns have their proper labels
+tailbeats <- separate(tailbeats, col=caudal, into=c('caudal.x', 'caudal.y'), sep='-')
+tailbeats <- separate(tailbeats, col=head, into=c('head.x', 'head.y'), sep='-')
+tailbeats <- separate(tailbeats, col=nose, into=c('nose.x', 'nose.y'), sep='-')
+tailbeats <- separate(tailbeats, col=spine1, into=c('spine1.x', 'spine1.y'), sep='-')
+#and for some reason there was NA nonsense and str problems, so:
+tailbeats[tailbeats == "NA"] <- NA
+tailbeats$caudal.x <- as.numeric(tailbeats$caudal.x)
+tailbeats$caudal.y <- as.numeric(tailbeats$caudal.y)
+tailbeats$head.x <- as.numeric(tailbeats$head.x)
+tailbeats$head.y <- as.numeric(tailbeats$head.y)
+tailbeats$nose.x <- as.numeric(tailbeats$nose.x)
+tailbeats$nose.y <- as.numeric(tailbeats$nose.y)
+tailbeats$spine1.x <- as.numeric(tailbeats$spine1.x)
+tailbeats$spine1.y <- as.numeric(tailbeats$spine1.y)
+
+################################################
+
+#now for the actual calculus :(
+
+#we'll need the vector between nose and head, and the vector between spine 1 and caudal:
+tailbeats <- tailbeats %>%
+  group_by(track) %>%
+  mutate(theta = acos( (((head.x - nose.x)*(caudal.x - spine1.x))+((head.y - nose.y)*(caudal.y - spine1.y)))/
+                         (sqrt((head.x - nose.x)^2+(head.y - nose.y)^2)*sqrt((caudal.x - spine1.x)^2+(caudal.y - spine1.y)^2)) ) ) %>%
+  mutate(thetadeg = rad2deg(theta))
+
+#and now the plots:
+
+#just for visualization's sake, I will filter this a little bit heh.
+
+tailbeats <- tailbeats %>%
+  group_by(track) %>%
+  mutate(Behavior = na_if(Behavior, "S")) %>%
+  mutate(Behavior = na_if(Behavior, "X")) %>%
+  mutate(Behavior = na_if(Behavior, ""))
+
+individ <- unique(tailbeats$track)
+figuretitle <- paste('Individual', individ, sep="_")
+thetalist <- split(tailbeats, tailbeats$track)
+
+thetafacet <-  
+  ggplot(tailbeats, aes(y=thetadeg, x=frame))+
+    geom_point(mapping=aes(size=Behavior, color=Behavior, group=Behavior))+
+    geom_path(linewidth=0.3)+
+    xlab("Time (Seconds)")+
+    ylab("Tail Angle Relative to Head (Radians)")+
+    scale_size_manual(values= c(2,2,2,2,0.5))+
+    theme_classic()+
+    theme(text = element_text(size = 12))+
+  facet_wrap(~track, ncol=1)
+thetafacet
+
+ggsave(filename="thetafacet.png",
+                          plot=thetafacet, width = 13, 
+                          height = 7, units = "in",
+                          path=here("HotFigures"))
+
+plottheta <- function(n) {
+  ggplot(n, aes(y=thetadeg, x=frame))+
+    geom_point(mapping=aes(color=Behavior, size=Behavior, group=Behavior))+
+    geom_path(linewidth=0.3)+
+    xlab("Time (Seconds)")+
+    ylab("Tail Angle Relative to Head (Radians)")+
+    scale_size_manual(values= c(5,5,5,5))+
+    theme_classic()+
+    theme(text = element_text(size = 18))  
+}
+
+thetaplotlist <- lapply(thetalist, plottheta)
+thetaplotlist
+
+names(thetaplotlist) <- figuretitle
+lapply(names(thetaplotlist), 
+       function(x) ggsave(filename=paste(x,"_tailangle_colorcoded",".png",sep=""),
+                          plot=thetaplotlist[[x]], width = 10, 
+                          height = 5, units = "in",
+                          path=here("HotFigures")))
+
+#of just the lateral displays:
+lateraldisplays <- tailbeats[leadlag(tailbeats$Behavior == "L", 20, 20),]
+lateraldisplay1 <- lateraldisplays %>%
+  group_by(track) %>%
+  slice(1:41)
+
+lateraldisplayfacet <-  
+  ggplot(lateraldisplay1, aes(y=thetadeg, x=frame))+
+    geom_point(size=0.5)+
+    geom_path(linewidth=0.3)+
+    xlab("Time (Seconds)")+
+    ylab("Tail Angle Relative to Head (Degrees)")+
+    theme_classic()+
+    theme(text = element_text(size = 12))+
+  facet_wrap(~track, ncol=1)
+lateraldisplayfacet
+
+ggsave("lateraldisplayfacet.png", plot=lateraldisplayfacet, width=7, height=5,
+       unit="in", path=here("HotFigures"))
+
+
+
+
+
+
+
+```
+
